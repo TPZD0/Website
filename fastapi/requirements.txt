@@ -1,0 +1,10 @@
+fastapi[standard]
+uvicorn
+databases[asyncpg]
+pydantic
+passlib[bcrypt]
+openai
+PyPDF2
+python-multipart
+httpx
+PyJWT

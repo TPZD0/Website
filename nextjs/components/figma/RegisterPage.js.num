@@ -1,0 +1,192 @@
+1:import { useState } from 'react';
+2:import { Card } from '../ui/card';
+3:import { Button } from '../ui/button';
+4:import { Input } from '../ui/input';
+5:import { Label } from '../ui/label';
+6:import { ImageWithFallback } from './ImageWithFallback';
+7:import { HERO_COPY, HERO_FEATURES, HERO_HEADLINE, HERO_IMAGE } from './authContent';
+8:
+9:const inputStyles = (
+10:  'h-12 rounded-xl border border-transparent bg-[#F5F6FB] px-4 text-sm font-medium text-[#101431] '
+11:  + 'placeholder:text-[#A0A6BD] shadow-sm transition focus-visible:border-[#C2CAF7] '
+12:  + 'focus-visible:ring-2 focus-visible:ring-[#C2CAF7]/60 disabled:bg-[#E8EBFF]'
+13:);
+14:
+15:export function RegisterPage() {
+16:  const [fullName, setFullName] = useState('');
+17:  const [email, setEmail] = useState('');
+18:  const [password, setPassword] = useState('');
+19:  const [loading, setLoading] = useState(false);
+20:  const [error, setError] = useState('');
+21:  const [success, setSuccess] = useState('');
+22:
+23:  const handleSubmit = async (e) => {
+24:    e.preventDefault();
+25:    setError('');
+26:    setSuccess('');
+27:    setLoading(true);
+28:    try {
+29:      const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+30:      const resp = await fetch(`${apiBase}/api/auth/register`, {
+31:        method: 'POST',
+32:        headers: { 'Content-Type': 'application/json' },
+33:        body: JSON.stringify({ real_name: fullName, email, password }),
+34:      });
+35:      const data = await resp.json().catch(() => ({}));
+36:      if (!resp.ok) {
+37:        throw new Error(data.detail || 'Registration failed');
+38:      }
+39:      setSuccess('Registration successful. Please check your email to verify.');
+40:      setFullName('');
+41:      setEmail('');
+42:      setPassword('');
+43:    } catch (e) {
+44:      setError(e instanceof Error ? e.message : 'Registration failed');
+45:    } finally {
+46:      setLoading(false);
+47:    }
+48:  };
+49:
+50:  const handleGoogleSignup = () => {
+51:    try {
+52:      setLoading(true);
+53:      setError('');
+54:      setSuccess('');
+55:      window.location.href = '/api/auth/google/login';
+56:    } catch (e) {
+57:      setError('Unable to start Google sign up.');
+58:      setLoading(false);
+59:    }
+60:  };
+61:
+62:  return (
+63:    <div className="grid min-h-screen grid-cols-1 md:grid-cols-2 bg-gradient-to-br from-[#EEF1FF] to-[#F4F6FF]">
+64:      <div className="relative flex items-center justify-center overflow-hidden">
+65:        <ImageWithFallback
+66:          src={HERO_IMAGE}
+67:          alt="Students studying in library"
+68:          className="absolute inset-0 h-full w-full object-cover"
+69:        />
+70:        <div className="absolute inset-0 bg-black/55" />
+71:        <div className="relative z-10 flex w-full max-w-xl flex-col gap-6 pl-14 pr-10 md:pl-16 py-16 text-white">
+72:          <h1 className="text-4xl font-semibold leading-tight">{HERO_HEADLINE}</h1>
+73:          <p className="text-lg leading-relaxed text-white/90">{HERO_COPY}</p>
+74:          <ul className="space-y-4 text-base text-white/90 list-none">
+75:            {HERO_FEATURES.map((feature) => (
+76:              <li key={`hero-${feature}`}>{feature}</li>
+77:            ))}
+78:          </ul>
+79:        </div>
+80:      </div>
+81:
+82:      <div className="flex items-center justify-center px-4 py-12 sm:px-8 lg:px-12">
+83:        <div className="w-full max-w-md">
+84:          <Card className="flex w-full flex-col gap-6 rounded-[32px] border-0 bg-white/90 p-10 shadow-[0px_24px_80px_rgba(15,23,42,0.12)] backdrop-blur">
+85:            <div className="text-center">
+86:              <h2 className="text-3xl font-semibold text-[#101431]">Create Account</h2>
+87:            </div>
+88:
+89:            {success && (
+90:              <div className="rounded-lg border border-[#A3E3C4] bg-[#E3F8ED] px-4 py-3 text-sm text-[#146C43]">
+91:                {success}
+92:              </div>
+93:            )}
+94:
+95:            {error && (
+96:              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+97:                {error}
+98:              </div>
+99:            )}
+100:
+101:            <form onSubmit={handleSubmit} className="space-y-4 text-left">
+102:              <div className="space-y-2">
+103:                <Label htmlFor="register-full-name" className="text-sm font-medium text-[#101431]">
+104:                  Full Name
+105:                </Label>
+106:                <Input
+107:                  id="register-full-name"
+108:                  type="text"
+109:                  value={fullName}
+110:                  onChange={(e) => setFullName(e.target.value)}
+111:                  placeholder="Enter your full name"
+112:                  className={inputStyles}
+113:                  required
+114:                  disabled={loading}
+115:                />
+116:              </div>
+117:              <div className="space-y-2">
+118:                <Label htmlFor="register-email" className="text-sm font-medium text-[#101431]">
+119:                  Email
+120:                </Label>
+121:                <Input
+122:                  id="register-email"
+123:                  type="email"
+124:                  value={email}
+125:                  onChange={(e) => setEmail(e.target.value)}
+126:                  placeholder="Enter your email"
+127:                  className={inputStyles}
+128:                  required
+129:                  disabled={loading}
+130:                />
+131:              </div>
+132:              <div className="space-y-2">
+133:                <Label htmlFor="register-password" className="text-sm font-medium text-[#101431]">
+134:                  Password
+135:                </Label>
+136:                <Input
+137:                  id="register-password"
+138:                  type="password"
+139:                  value={password}
+140:                  onChange={(e) => setPassword(e.target.value)}
+141:                  placeholder="Enter your password"
+142:                  className={inputStyles}
+143:                  required
+144:                  minLength={8}
+145:                  disabled={loading}
+146:                />
+147:              </div>
+148:              <Button
+149:                type="submit"
+150:                className="h-12 w-full rounded-xl !bg-[#0B0A1A] !text-white text-base font-semibold shadow transition hover:!bg-[#0B0A1A]/90 disabled:!bg-[#0B0A1A]/70"
+151:                disabled={loading}
+152:              >
+153:                {loading ? 'Signing up...' : 'Sign Up'}
+154:              </Button>
+155:            </form>
+156:
+157:            <div className="flex items-center gap-4">
+158:              <span className="h-px flex-1 bg-[#E3E7F4]" />
+159:              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E3E7F4] bg-white text-xs font-medium text-[#5F6683]">or</span>
+160:              <span className="h-px flex-1 bg-[#E3E7F4]" />
+161:            </div>
+162:
+163:            <Button
+164:              type="button"
+165:              variant="outline"
+166:              className="h-12 w-full rounded-xl border border-[#E0E5F5] bg-white text-sm font-semibold text-[#101431] hover:bg-[#F6F7FF]"
+167:              onClick={handleGoogleSignup}
+168:              disabled={loading}
+169:            >
+170:              <span className="mr-3 inline-flex h-5 w-5 items-center justify-center">
+171:                <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+172:                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+173:                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+174:                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+175:                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+176:                </svg>
+177:              </span>
+178:                Continue with Google
+179:              </Button>
+180:
+181:            <p className="text-center text-sm text-[#5F6683]">
+182:              Already have an account?{' '}
+183:              <a className="font-semibold text-[#0B0A1A] hover:underline" href="/login">
+184:                Sign in
+185:              </a>
+186:            </p>
+187:          </Card>
+188:        </div>
+189:      </div>
+190:    </div>
+191:  );
+192:}
