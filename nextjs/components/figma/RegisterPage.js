@@ -27,14 +27,29 @@ export function RegisterPage() {
     setLoading(true);
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
-      const resp = await fetch(`${apiBase}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ real_name: fullName, email, password }),
-      });
+      let resp;
+      try {
+        resp = await fetch(`${apiBase}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ real_name: fullName, email, password }),
+        });
+      } catch (_err) {
+        // Fallback to Next.js rewrite path when direct base URL is unreachable (e.g., in Docker)
+        resp = await fetch(`/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ real_name: fullName, email, password }),
+        });
+      }
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         throw new Error(data.detail || 'Registration failed');
+      }
+      // Redirect to login with a hint to check email
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login?checkEmail=1';
+        return;
       }
       setSuccess('Registration successful. Please check your email to verify.');
       setFullName('');

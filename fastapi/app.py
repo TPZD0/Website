@@ -1,4 +1,7 @@
 # main.py
+import os
+from urllib.parse import urlparse
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -12,9 +15,19 @@ from routes.auth_email import router as email_auth_router
 
 app = FastAPI()
 
+# Configure CORS to allow cookie-based auth from the frontend origin
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+parsed = urlparse(frontend_url)
+frontend_origin = f"{parsed.scheme}://{parsed.hostname}"
+if parsed.port:
+    frontend_origin += f":{parsed.port}"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    allow_origins=[frontend_origin],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
 )
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

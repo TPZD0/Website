@@ -49,12 +49,23 @@ export function LoginPage() {
     setLoading(true);
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
-      const resp = await fetch(`${apiBase}/api/users/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: email, password }),
-        credentials: 'include',
-      });
+      let resp;
+      try {
+        resp = await fetch(`${apiBase}/api/users/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: email, password }),
+          credentials: 'include',
+        });
+      } catch (_err) {
+        // Fallback to Next.js rewrite path when direct base URL is unreachable (e.g., in Docker)
+        resp = await fetch(`/api/users/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: email, password }),
+          credentials: 'include',
+        });
+      }
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data.detail || 'Login failed');

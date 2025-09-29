@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from auth import hash_password, verify_password
+from security import create_session_token
 from database import (
     connect_db, disconnect_db,
     insert_user, get_user, get_user_by_id,
@@ -119,15 +122,31 @@ async def login_user(payload: UserLogin):
     if not verify_password(payload.password, db_user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     # Enforce email verification if present in schema
-    if "is_verified" in db_user and not db_user["is_verified"]:
+    user_dict = dict(db_user)
+    if "is_verified" in user_dict and not user_dict.get("is_verified"):
         raise HTTPException(status_code=403, detail="Please verify your email before logging in")
     
-    return {
-        "user_id": db_user["user_id"],
-        "username": db_user["username"],
-        "email": db_user["email"],
-        "first_name": db_user.get("first_name"),
-        "last_name": db_user.get("last_name"),
-        "tel": db_user["tel"],
-        "created_at": db_user["created_at"],
+    # Create session token and set HttpOnly cookie so Next.js middleware can verify
+    token = create_session_token(user_dict)
+    body = {
+        "user_id": user_dict["user_id"],
+        "username": user_dict["username"],
+        "email": user_dict["email"],
+        "first_name": user_dict.get("first_name"),
+        "last_name": user_dict.get("last_name"),
+        "tel": user_dict.get("tel"),
+        "created_at": user_dict.get("created_at"),
     }
+    # Ensure JSON-safe encoding for datetime fields
+    resp = JSONResponse(content=jsonable_encoder(body))
+    # For local dev, secure=False; enable secure=True behind HTTPS
+    resp.set_cookie(
+        key="sp_session",
+        value=token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=7 * 24 * 3600,
+        path="/",
+    )
+    return resp
