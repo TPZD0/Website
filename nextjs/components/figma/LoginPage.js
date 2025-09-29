@@ -28,6 +28,9 @@ export function LoginPage() {
     if (params.get('checkEmail') === '1') {
       setInfo('Check your email for a verification link.');
     }
+    if (params.get('reset') === '1') {
+      setInfo('Password updated. You can now sign in.');
+    }
   }, []);
 
   const handleGoogleLogin = () => {

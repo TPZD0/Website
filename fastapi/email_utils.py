@@ -9,6 +9,7 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "no-reply@example.com")
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
 def send_verification_email(to_email: str, token: str):
@@ -30,6 +31,41 @@ Please confirm your email address by clicking the link below:
 {verify_url}
 
 If you did not request this, please ignore this email.
+
+Thanks,
+Study Partner
+""".strip()
+    )
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
+        try:
+            smtp.starttls()
+        except Exception:
+            pass
+        if SMTP_USER:
+            smtp.login(SMTP_USER, SMTP_PASS)
+        smtp.send_message(msg)
+
+
+def send_password_reset_email(to_email: str, token: str):
+    if not SMTP_HOST:
+        # For dev, print the frontend reset link
+        print(f"[DEV] Password reset link for {to_email}: {FRONTEND_URL}/reset-password?token={token}")
+        return
+
+    reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+    msg = EmailMessage()
+    msg["Subject"] = "Reset your Study Partner password"
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg.set_content(
+        f"""
+Hi,
+
+We received a request to reset your password. Click the link below:
+{reset_url}
+
+If you did not request this, you can safely ignore this email.
 
 Thanks,
 Study Partner

@@ -102,6 +102,51 @@ async def mark_user_verified(user_id: int):
     """
     return await database.fetch_one(query=query, values={"user_id": user_id})
 
+# --- Password reset helpers --------------------------------------------------
+
+async def ensure_reset_columns():
+    """Ensure the users table has reset_token/reset_sent_at columns."""
+    # Using IF NOT EXISTS makes this safe to run on every startup
+    await database.execute(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255)"
+    )
+    await database.execute(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_sent_at TIMESTAMP"
+    )
+
+async def set_password_reset(user_id: int, token: str):
+    query = """
+    UPDATE users
+    SET reset_token = :token,
+        reset_sent_at = CURRENT_TIMESTAMP
+    WHERE user_id = :user_id
+    RETURNING *
+    """
+    return await database.fetch_one(query=query, values={"user_id": user_id, "token": token})
+
+async def get_user_by_reset_token(token: str):
+    query = "SELECT * FROM users WHERE reset_token = :token"
+    return await database.fetch_one(query=query, values={"token": token})
+
+async def clear_password_reset(user_id: int):
+    query = """
+    UPDATE users
+    SET reset_token = NULL,
+        reset_sent_at = NULL
+    WHERE user_id = :user_id
+    RETURNING *
+    """
+    return await database.fetch_one(query=query, values={"user_id": user_id})
+
+async def update_user_password(user_id: int, password_hash: str):
+    query = """
+    UPDATE users
+    SET password_hash = :password_hash
+    WHERE user_id = :user_id
+    RETURNING *
+    """
+    return await database.fetch_one(query=query, values={"user_id": user_id, "password_hash": password_hash})
+
 async def insert_pdf(user_id: int, name: str, file_path: str):
     query = """
     INSERT INTO pdf_files (user_id, name, file_path)

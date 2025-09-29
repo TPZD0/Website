@@ -14,8 +14,12 @@ from database import (
     set_email_verification,
     get_user_by_verification_token,
     mark_user_verified,
+    set_password_reset,
+    get_user_by_reset_token,
+    clear_password_reset,
+    update_user_password,
 )
-from email_utils import send_verification_email
+from email_utils import send_verification_email, send_password_reset_email
 
 
 router = APIRouter()
@@ -85,4 +89,40 @@ async def verify_email(token: Optional[str] = None):
     # Redirect back to frontend login with a flag
     frontend = os.getenv("FRONTEND_URL", "http://localhost:3000")
     return RedirectResponse(url=f"{frontend}/login?verified=1")
+
+
+class ForgotPayload(BaseModel):
+    email: EmailStr
+
+
+@router.post("/auth/forgot", dependencies=[Depends(ensure_db)])
+async def forgot_password(payload: ForgotPayload):
+    # Always respond with success to prevent email enumeration
+    user = await get_user_by_identifier(payload.email)
+    if user:
+        token = secrets.token_urlsafe(32)
+        await set_password_reset(user["user_id"], token)
+        try:
+            send_password_reset_email(payload.email, token)
+        except Exception:
+            pass
+    return {"detail": "If an account exists, we've sent a reset link."}
+
+
+class ResetPayload(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/auth/reset", dependencies=[Depends(ensure_db)])
+async def reset_password(payload: ResetPayload):
+    if not payload.token or not payload.new_password:
+        raise HTTPException(status_code=400, detail="Missing token or password")
+    user = await get_user_by_reset_token(payload.token)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    pw_hash = hash_password(payload.new_password)
+    await update_user_password(user["user_id"], pw_hash)
+    await clear_password_reset(user["user_id"])
+    return {"detail": "Password updated. You can now sign in."}
 

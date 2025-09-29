@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from database import connect_db, disconnect_db
+from database import connect_db, disconnect_db, ensure_reset_columns
 from routes.files import router as files_router
 from routes.users import router as users_router
 from routes.ai import router as ai_router
@@ -35,6 +35,12 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 @app.on_event("startup")
 async def startup():
     await connect_db()
+    # Ensure optional schema bits needed by features like password reset
+    try:
+        await ensure_reset_columns()
+    except Exception:
+        # Don't crash app if migration fails; log would show in server
+        pass
 
 @app.on_event("shutdown")
 async def shutdown():

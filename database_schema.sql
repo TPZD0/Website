@@ -70,6 +70,9 @@ CREATE INDEX IF NOT EXISTS idx_quiz_sessions_created_at ON quiz_sessions(created
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMP;
+-- Password reset columns
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_sent_at TIMESTAMP;
 
 -- Insert a test user (password is 'testpassword123')
 -- You can use this to test the login functionality
