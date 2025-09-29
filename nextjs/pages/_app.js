@@ -29,6 +29,40 @@ export default function App({ Component, pageProps, props }) {
   const [loading, setLoading] = React.useState(false);
   const setAppName = useBearStore((state) => state.setAppName);
   const pageName = router.pathname;
+  const sessionIdRef = React.useRef(null);
+  const startTimeRef = React.useRef(0);
+
+  const startSession = React.useCallback(async (path) => {
+    try {
+      startTimeRef.current = Date.now();
+      const resp = await fetch('/api/session/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+        credentials: 'include',
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      sessionIdRef.current = data.session_id || null;
+    } catch {}
+  }, []);
+
+  const endSession = React.useCallback(async () => {
+    try {
+      if (!sessionIdRef.current) return;
+      const dur = Math.max(1, Math.round((Date.now() - (startTimeRef.current || Date.now())) / 1000));
+      await fetch('/api/session/end', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionIdRef.current, duration_seconds: dur }),
+        credentials: 'include',
+      });
+    } catch {}
+    finally {
+      sessionIdRef.current = null;
+      startTimeRef.current = 0;
+    }
+  }, []);
 
   React.useEffect(() => {
     console.log("App load", pageName, router.query);
@@ -36,6 +70,24 @@ export default function App({ Component, pageProps, props }) {
     // TODO: This section is use to handle page change.
     setAppName("Say Hi")
     setLoading(false);
+    // Start a new session on first mount and when route completes
+    startSession(router.asPath);
+    const handleRouteChangeStart = () => {
+      endSession();
+    };
+    const handleRouteChangeComplete = (url) => {
+      startSession(url);
+    };
+    router.events.on('routeChangeStart', handleRouteChangeStart);
+    router.events.on('routeChangeComplete', handleRouteChangeComplete);
+    const beforeUnload = () => { endSession(); };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      router.events.off('routeChangeStart', handleRouteChangeStart);
+      router.events.off('routeChangeComplete', handleRouteChangeComplete);
+      endSession();
+    };
   }, [router, pageName]);
 
   return (

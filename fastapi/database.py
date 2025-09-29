@@ -201,3 +201,82 @@ async def update_user(
 async def delete_user(user_id: int):
     query = "DELETE FROM users WHERE user_id = :user_id RETURNING *"
     return await database.fetch_one(query=query, values={"user_id": user_id})
+
+# --- User Sessions (time tracking) ------------------------------------------
+
+async def ensure_user_sessions_table():
+    await database.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+            path VARCHAR(255),
+            started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            ended_at TIMESTAMP,
+            duration_seconds INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    await database.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id)")
+    await database.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_started ON user_sessions(started_at)")
+    await database.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_ended ON user_sessions(ended_at)")
+
+async def insert_user_session(user_id: int, path: Optional[str]) -> int:
+    query = """
+    INSERT INTO user_sessions (user_id, path)
+    VALUES (:user_id, :path)
+    RETURNING id
+    """
+    return await database.fetch_val(query=query, values={"user_id": user_id, "path": path})
+
+async def end_user_session(session_id: int, duration_seconds: Optional[int] = None):
+    # If duration not provided, compute based on started_at and now()
+    if duration_seconds is None:
+        query = """
+        UPDATE user_sessions
+        SET ended_at = CURRENT_TIMESTAMP,
+            duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT
+        WHERE id = :id
+        RETURNING *
+        """
+        return await database.fetch_one(query=query, values={"id": session_id})
+    else:
+        query = """
+        UPDATE user_sessions
+        SET ended_at = CURRENT_TIMESTAMP,
+            duration_seconds = :duration
+        WHERE id = :id
+        RETURNING *
+        """
+        return await database.fetch_one(query=query, values={"id": session_id, "duration": duration_seconds})
+
+async def get_session_stats_today(user_id: int) -> int:
+    query = """
+    SELECT COALESCE(SUM(duration_seconds),0) AS total
+    FROM user_sessions
+    WHERE user_id = :user_id
+      AND ended_at IS NOT NULL
+      AND ended_at >= date_trunc('day', CURRENT_TIMESTAMP)
+    """
+    return int(await database.fetch_val(query=query, values={"user_id": user_id}) or 0)
+
+async def get_session_stats_7d(user_id: int) -> int:
+    query = """
+    SELECT COALESCE(SUM(duration_seconds),0) AS total
+    FROM user_sessions
+    WHERE user_id = :user_id
+      AND ended_at IS NOT NULL
+      AND ended_at >= (CURRENT_TIMESTAMP - INTERVAL '7 days')
+    """
+    return int(await database.fetch_val(query=query, values={"user_id": user_id}) or 0)
+
+async def get_last_session_seconds(user_id: int) -> Optional[int]:
+    query = """
+    SELECT duration_seconds
+    FROM user_sessions
+    WHERE user_id = :user_id AND ended_at IS NOT NULL
+    ORDER BY ended_at DESC
+    LIMIT 1
+    """
+    return await database.fetch_val(query=query, values={"user_id": user_id})

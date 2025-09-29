@@ -74,6 +74,20 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_sent_at TIMESTAMP;
 
+-- Track user time spent per session
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+    path VARCHAR(255),
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP,
+    duration_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_started ON user_sessions(started_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_ended ON user_sessions(ended_at);
+
 -- Insert a test user (password is 'testpassword123')
 -- You can use this to test the login functionality
 INSERT INTO users (username, password_hash, email, first_name, last_name) 

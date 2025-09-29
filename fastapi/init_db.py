@@ -36,8 +36,29 @@ async def init_database():
         
         await database.execute(users_table)
         await database.execute(pdf_files_table)
+
+        # Create user_sessions table for time tracking
+        user_sessions_table = """
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            path VARCHAR(255),
+            started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            ended_at TIMESTAMP,
+            duration_seconds INTEGER,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        user_sessions_indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_user_sessions_started ON user_sessions(started_at)",
+            "CREATE INDEX IF NOT EXISTS idx_user_sessions_ended ON user_sessions(ended_at)",
+        ]
+        await database.execute(user_sessions_table)
+        for stmt in user_sessions_indexes:
+            await database.execute(stmt)
         
-        print("✅ Database tables created successfully!")
+        print("✅ Database tables created/verified successfully!")
         
     except Exception as e:
         print(f"❌ Error creating tables: {e}")

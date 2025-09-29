@@ -12,6 +12,7 @@ from routes.ai import router as ai_router
 from routes.goals import router as goals_router
 from routes.auth_google import router as google_auth_router
 from routes.auth_email import router as email_auth_router
+from routes.sessions import router as sessions_router
 
 app = FastAPI()
 
@@ -52,3 +53,4 @@ app.include_router(ai_router, prefix="/api")
 app.include_router(goals_router, prefix="/api")
 app.include_router(google_auth_router, prefix="/api")
 app.include_router(email_auth_router, prefix="/api")
+app.include_router(sessions_router, prefix="/api")

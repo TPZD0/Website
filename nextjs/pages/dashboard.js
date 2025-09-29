@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Dashboard as DashboardView } from '@/components/figma/Dashboard';
 import Link from 'next/link';
-import { Settings as SettingsIcon, LogOut, User as UserIcon } from 'lucide-react';
+import { Settings as SettingsIcon, LogOut, User as UserIcon, Clock3 } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   });
   const [username, setUsername] = useState('User');
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [sessionStats, setSessionStats] = useState({ today_seconds: 0, week_seconds: 0, last_session_seconds: 0 });
 
   useEffect(() => {
     const ensureAuth = async () => {
@@ -48,6 +50,14 @@ export default function DashboardPage() {
           } else {
             console.error('Failed to load goal statistics');
           }
+          // Load session stats (today + last)
+          try {
+            const sess = await fetch('/api/session/stats', { credentials: 'include' });
+            if (sess.ok) {
+              const s = await sess.json();
+              setSessionStats(s);
+            }
+          } catch {}
         }
       } catch (error) {
         console.error('Error loading user data:', error);
@@ -97,6 +107,49 @@ export default function DashboardPage() {
             <UserIcon className="h-4 w-4" />
             <span className="font-medium">{username}</span>
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border hover:bg-accent text-sm"
+                aria-label="View time stats"
+                title={`Time today: ${Math.floor((sessionStats.today_seconds||0)/3600)}h ${Math.floor(((sessionStats.today_seconds||0)%3600)/60)}m`}
+              >
+                <Clock3 className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {Math.floor((sessionStats.today_seconds||0)/3600)}h {Math.floor(((sessionStats.today_seconds||0)%3600)/60)}m
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <div className="space-y-2">
+                <div className="font-medium">Study Time</div>
+                <div className="text-sm text-muted-foreground">Quick breakdown from your recent sessions.</div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-md border p-2">
+                    <div className="text-muted-foreground">Today</div>
+                    <div className="font-semibold">
+                      {Math.floor((sessionStats.today_seconds||0)/3600)}h {Math.floor(((sessionStats.today_seconds||0)%3600)/60)}m
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-2">
+                    <div className="text-muted-foreground">Last session</div>
+                    <div className="font-semibold">
+                      {Math.floor((sessionStats.last_session_seconds||0)/3600)}h {Math.floor(((sessionStats.last_session_seconds||0)%3600)/60)}m
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-2 col-span-2">
+                    <div className="text-muted-foreground">Last 7 days</div>
+                    <div className="font-semibold">
+                      {Math.floor((sessionStats.week_seconds||0)/3600)}h {Math.floor(((sessionStats.week_seconds||0)%3600)/60)}m
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Sessions update as you navigate. Close to continue.
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Link href="/settings" className="inline-flex items-center gap-2 px-3 py-2 rounded-md border hover:bg-accent text-sm">
             <SettingsIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Settings</span>
