@@ -252,22 +252,38 @@ async def end_user_session(session_id: int, duration_seconds: Optional[int] = No
         return await database.fetch_one(query=query, values={"id": session_id, "duration": duration_seconds})
 
 async def get_session_stats_today(user_id: int) -> int:
+    # Sum completed sessions that ended today, plus any currently active session that started today (partial up to now)
     query = """
-    SELECT COALESCE(SUM(duration_seconds),0) AS total
+    SELECT COALESCE(SUM(
+        CASE
+            WHEN ended_at IS NOT NULL THEN COALESCE(duration_seconds, 0)
+            ELSE EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT
+        END
+    ), 0) AS total
     FROM user_sessions
     WHERE user_id = :user_id
-      AND ended_at IS NOT NULL
-      AND ended_at >= date_trunc('day', CURRENT_TIMESTAMP)
+      AND (
+        (ended_at IS NOT NULL AND ended_at >= date_trunc('day', CURRENT_TIMESTAMP))
+        OR (ended_at IS NULL AND started_at >= date_trunc('day', CURRENT_TIMESTAMP))
+      )
     """
     return int(await database.fetch_val(query=query, values={"user_id": user_id}) or 0)
 
 async def get_session_stats_7d(user_id: int) -> int:
+    # Sum completed sessions ended within last 7 days, plus active sessions started within last 7 days (partial)
     query = """
-    SELECT COALESCE(SUM(duration_seconds),0) AS total
+    SELECT COALESCE(SUM(
+        CASE
+            WHEN ended_at IS NOT NULL THEN COALESCE(duration_seconds, 0)
+            ELSE EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT
+        END
+    ), 0) AS total
     FROM user_sessions
     WHERE user_id = :user_id
-      AND ended_at IS NOT NULL
-      AND ended_at >= (CURRENT_TIMESTAMP - INTERVAL '7 days')
+      AND (
+        (ended_at IS NOT NULL AND ended_at >= (CURRENT_TIMESTAMP - INTERVAL '7 days'))
+        OR (ended_at IS NULL AND started_at >= (CURRENT_TIMESTAMP - INTERVAL '7 days'))
+      )
     """
     return int(await database.fetch_val(query=query, values={"user_id": user_id}) or 0)
 

@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [username, setUsername] = useState('User');
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [sessionStats, setSessionStats] = useState({ today_seconds: 0, week_seconds: 0, last_session_seconds: 0 });
+  const [displayTodaySeconds, setDisplayTodaySeconds] = useState(0);
 
   useEffect(() => {
     const ensureAuth = async () => {
@@ -73,6 +74,58 @@ export default function DashboardPage() {
     })();
   }, [router]);
 
+  // Live-updating display for today's time (adds active session delta if present)
+  useEffect(() => {
+    const computeDisplay = () => {
+      let base = sessionStats.today_seconds || 0;
+      try {
+        const startedAt = localStorage.getItem('sp_active_session_started_at');
+        if (startedAt) {
+          const started = new Date(startedAt).getTime();
+          if (!isNaN(started)) {
+            const delta = Math.max(0, Math.floor((Date.now() - started) / 1000));
+            base += delta;
+          }
+        }
+      } catch {}
+      setDisplayTodaySeconds(base);
+    };
+    computeDisplay();
+    const t = setInterval(computeDisplay, 1000);
+    const onSessionChange = () => { setTimeout(computeDisplay, 100); };
+    window.addEventListener('session-started', onSessionChange);
+    window.addEventListener('session-ended', onSessionChange);
+    const onVisibility = () => { if (!document.hidden) computeDisplay(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('session-started', onSessionChange);
+      window.removeEventListener('session-ended', onSessionChange);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [sessionStats.today_seconds]);
+
+  // Light polling to refresh stats so week/last reflect route changes
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      try {
+        const resp = await fetch('/api/session/stats', { credentials: 'include' });
+        if (resp.ok) {
+          const s = await resp.json();
+          setSessionStats(s);
+        }
+      } catch {}
+    }, 30000);
+    const onEnded = async () => {
+      try {
+        const resp = await fetch('/api/session/stats', { credentials: 'include' });
+        if (resp.ok) setSessionStats(await resp.json());
+      } catch {}
+    };
+    window.addEventListener('session-ended', onEnded);
+    return () => { clearInterval(poll); window.removeEventListener('session-ended', onEnded); };
+  }, []);
+
   const updateGoalStats = async () => {
     try {
       const userId = localStorage.getItem('userId');
@@ -116,21 +169,21 @@ export default function DashboardPage() {
               >
                 <Clock3 className="h-4 w-4" />
                 <span className="hidden sm:inline">
-                  {Math.floor((sessionStats.today_seconds||0)/3600)}h {Math.floor(((sessionStats.today_seconds||0)%3600)/60)}m
-                </span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80">
-              <div className="space-y-2">
-                <div className="font-medium">Study Time</div>
-                <div className="text-sm text-muted-foreground">Quick breakdown from your recent sessions.</div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-md border p-2">
-                    <div className="text-muted-foreground">Today</div>
-                    <div className="font-semibold">
-                      {Math.floor((sessionStats.today_seconds||0)/3600)}h {Math.floor(((sessionStats.today_seconds||0)%3600)/60)}m
-                    </div>
-                  </div>
+              {Math.floor((displayTodaySeconds||0)/3600)}h {Math.floor(((displayTodaySeconds||0)%3600)/60)}m
+            </span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80">
+          <div className="space-y-2">
+            <div className="font-medium">Study Time</div>
+            <div className="text-sm text-muted-foreground">Quick breakdown from your recent sessions.</div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-md border p-2">
+                <div className="text-muted-foreground">Today</div>
+                <div className="font-semibold">
+                      {Math.floor((displayTodaySeconds||0)/3600)}h {Math.floor(((displayTodaySeconds||0)%3600)/60)}m
+                </div>
+              </div>
                   <div className="rounded-md border p-2">
                     <div className="text-muted-foreground">Last session</div>
                     <div className="font-semibold">

@@ -44,6 +44,10 @@ export default function App({ Component, pageProps, props }) {
       if (!resp.ok) return;
       const data = await resp.json();
       sessionIdRef.current = data.session_id || null;
+      try {
+        localStorage.setItem('sp_active_session_started_at', new Date().toISOString());
+      } catch {}
+      try { window.dispatchEvent(new Event('session-started')); } catch {}
     } catch {}
   }, []);
 
@@ -61,6 +65,8 @@ export default function App({ Component, pageProps, props }) {
     finally {
       sessionIdRef.current = null;
       startTimeRef.current = 0;
+      try { localStorage.removeItem('sp_active_session_started_at'); } catch {}
+      try { window.dispatchEvent(new Event('session-ended')); } catch {}
     }
   }, []);
 
