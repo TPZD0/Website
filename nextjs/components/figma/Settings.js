@@ -18,6 +18,15 @@ export function Settings({ user, updateUser, setCurrentPage }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const apiFetch = async (path, options = {}) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+    try {
+      return await fetch(`${apiBase}${path}`, { credentials: 'include', ...options });
+    } catch (_err) {
+      return await fetch(path, { credentials: 'include', ...options });
+    }
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     
@@ -32,13 +41,21 @@ export function Settings({ user, updateUser, setCurrentPage }) {
     }
 
     setIsUpdating(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    updateUser({ name: name.trim(), email: email.trim() });
-    toast.success('Profile updated successfully');
-    setIsUpdating(false);
+    try {
+      const resp = await apiFetch('/api/users/me/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.detail || 'Failed to update profile');
+      updateUser({ name: name.trim(), email: email.trim() });
+      toast.success('Profile updated successfully');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update profile');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handlePasswordUpdate = async (e) => {
@@ -65,15 +82,48 @@ export function Settings({ user, updateUser, setCurrentPage }) {
     }
 
     setIsUpdating(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    toast.success('Password updated successfully');
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setIsUpdating(false);
+    try {
+      const resp = await apiFetch('/api/users/me/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.detail || 'Failed to update password');
+      toast.success('Password updated successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update password');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm('Are you sure you want to permanently delete your account? This cannot be undone.');
+    if (!confirmed) return;
+    setIsUpdating(true);
+    try {
+      const resp = await apiFetch('/api/users/me', { method: 'DELETE' });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || 'Failed to delete account');
+      }
+      try {
+        localStorage.removeItem('userId');
+        localStorage.removeItem('username');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('firstName');
+        localStorage.removeItem('lastName');
+      } catch {}
+      window.location.href = '/login';
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete account');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return (
@@ -284,8 +334,16 @@ export function Settings({ user, updateUser, setCurrentPage }) {
                 <p className="text-sm">Standard User</p>
               </div>
             </div>
-            
-
+            <div className="pt-2">
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={handleDeleteAccount}
+                disabled={isUpdating}
+              >
+                Delete Account
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

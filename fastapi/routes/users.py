@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
 from auth import hash_password, verify_password
-from security import create_session_token
+from security import create_session_token, require_auth
 from database import (
     connect_db, disconnect_db,
     insert_user, get_user, get_user_by_id,
@@ -13,6 +13,7 @@ from database import (
     delete_user as delete_user_db,
     get_user_by_identifier_and_password,   # <-- import the new helper
     get_user_by_identifier,
+    update_user_password,
 )
 
 router = APIRouter()
@@ -58,6 +59,107 @@ async def _startup():
 @router.on_event("shutdown")
 async def _shutdown():
     await disconnect_db()
+
+
+# --- Me endpoints (auth required) -------------------------------------------
+
+class ProfileUpdatePayload(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class PasswordChangePayload(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.get("/users/me", dependencies=[Depends(ensure_db)])
+async def get_me(user=Depends(require_auth)):
+    uid = int(user.get("sub"))
+    db_user = await get_user_by_id(uid)
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_dict = dict(db_user)
+    data = {
+        "user_id": user_dict["user_id"],
+        "username": user_dict["username"],
+        "email": user_dict["email"],
+        "first_name": user_dict.get("first_name"),
+        "last_name": user_dict.get("last_name"),
+        "tel": user_dict.get("tel"),
+        "created_at": user_dict.get("created_at"),
+    }
+    return JSONResponse(content=jsonable_encoder(data))
+
+
+@router.patch("/users/me/profile", dependencies=[Depends(ensure_db)])
+async def update_me_profile(payload: ProfileUpdatePayload, user=Depends(require_auth)):
+    uid = int(user.get("sub"))
+    current = await get_user_by_id(uid)
+    if not current:
+        raise HTTPException(status_code=404, detail="User not found")
+    current_dict = dict(current)
+
+    # Compute new first/last names from 'name' if provided
+    first_name = current_dict.get("first_name")
+    last_name = current_dict.get("last_name")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if name:
+            parts = name.split()
+            first_name = parts[0]
+            last_name = " ".join(parts[1:]) if len(parts) > 1 else None
+
+    # Optionally update email
+    email = current_dict["email"]
+    if payload.email is not None:
+        new_email = payload.email.lower()
+        if new_email != email:
+            existing = await get_user_by_identifier(new_email)
+            if existing and existing["user_id"] != uid:
+                raise HTTPException(status_code=400, detail="Email already in use")
+            email = new_email
+
+    updated = await update_user_db(
+        uid,
+        current_dict["username"],
+        current_dict["password_hash"],
+        email,
+        first_name,
+        last_name,
+        current_dict.get("tel"),
+    )
+    return JSONResponse(content=jsonable_encoder(dict(updated)))
+
+
+@router.post("/users/me/password", dependencies=[Depends(ensure_db)])
+async def change_password(payload: PasswordChangePayload, user=Depends(require_auth)):
+    uid = int(user.get("sub"))
+    current = await get_user_by_id(uid)
+    if not current:
+        raise HTTPException(status_code=404, detail="User not found")
+    current_dict = dict(current)
+    if not verify_password(payload.current_password, current_dict["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if verify_password(payload.new_password, current_dict["password_hash"]):
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+
+    new_hash = hash_password(payload.new_password)
+    await update_user_password(uid, new_hash)
+    return {"detail": "Password updated"}
+
+
+@router.delete("/users/me", dependencies=[Depends(ensure_db)])
+async def delete_me(user=Depends(require_auth)):
+    uid = int(user.get("sub"))
+    deleted = await delete_user_db(uid)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+    resp = JSONResponse(content={"detail": "Account deleted"})
+    resp.delete_cookie("sp_session", path="/")
+    return resp
 
 @router.post("/users/create", response_model=User, dependencies=[Depends(ensure_db)])
 async def create_user(user: UserCreate):
