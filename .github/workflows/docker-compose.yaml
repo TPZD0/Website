@@ -1,0 +1,38 @@
+services:
+  nextjs:
+    build:
+      context: ./nextjs
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./nextjs:/src
+      - /src/node_modules # This masks the node_modules directory from the host system and prevents it from being mapped from your local filesystem. The container will manage its own node_modules directory.
+    working_dir: /src
+    command: npm run dev
+
+  db:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: temp
+      POSTGRES_PASSWORD: temp
+      POSTGRES_DB: advcompro
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  fastapi:
+    build:
+      context: ./fastapi
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./fastapi:/src
+    env_file:
+      - ./fastapi/.env
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
