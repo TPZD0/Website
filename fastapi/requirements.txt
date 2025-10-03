@@ -2,7 +2,9 @@ fastapi[standard]
 uvicorn
 databases[asyncpg]
 pydantic
-passlib[bcrypt]
+passlib[bcrypt]>=1.7.4
+# Pin bcrypt to avoid 4.1+ long-password ValueError with passlib
+bcrypt<4.1
 openai
 PyPDF2
 python-multipart
