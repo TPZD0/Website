@@ -2,6 +2,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from security import require_auth
 from database import (
@@ -25,21 +26,30 @@ async def ensure_db():
         pass
 
 
+class SessionStartPayload(BaseModel):
+    path: Optional[str] = None
+
+
+class SessionEndPayload(BaseModel):
+    session_id: int
+    duration_seconds: Optional[int] = None
+
+
 @router.post("/session/start", dependencies=[Depends(ensure_db)])
-async def session_start(path: Optional[str] = None, user=Depends(require_auth)):
+async def session_start(payload: SessionStartPayload, user=Depends(require_auth)):
     try:
         uid = int(user.get("sub"))
-        sid = await insert_user_session(uid, path)
+        sid = await insert_user_session(uid, payload.path)
         return {"session_id": sid}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start session: {e}")
 
 
 @router.post("/session/end", dependencies=[Depends(ensure_db)])
-async def session_end(session_id: int, duration_seconds: Optional[int] = None, user=Depends(require_auth)):
+async def session_end(payload: SessionEndPayload, user=Depends(require_auth)):
     try:
         # ensure session belongs to the user implicitly by not exposing update beyond id; trusting id here
-        rec = await end_user_session(session_id, duration_seconds)
+        rec = await end_user_session(payload.session_id, payload.duration_seconds)
         if not rec:
             raise HTTPException(status_code=404, detail="Session not found")
         return {"detail": "Session closed"}

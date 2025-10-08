@@ -4,4 +4,4 @@ export const HERO_COPY = `Study Partner makes learning easier and smarter. Uploa
 
 export const HERO_FEATURES = ['• AI-powered summaries', '• Interactive quizzes', '• Goal tracking'];
 
-export const HERO_IMAGE = '/asset/testing.jpg';
+export const HERO_IMAGE = '/asset/front_page.jpg';

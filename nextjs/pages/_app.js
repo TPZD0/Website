@@ -77,12 +77,17 @@ export default function App({ Component, pageProps, props }) {
     setAppName("Say Hi")
     setLoading(false);
     // Start a new session on first mount and when route completes
-    startSession(router.asPath);
+    const authFree = new Set(['/login', '/register', '/forgot-password', '/reset-password']);
+    if (!authFree.has(router.pathname)) {
+      startSession(router.asPath);
+    }
     const handleRouteChangeStart = () => {
       endSession();
     };
     const handleRouteChangeComplete = (url) => {
-      startSession(url);
+      if (!authFree.has(router.pathname)) {
+        startSession(url);
+      }
     };
     router.events.on('routeChangeStart', handleRouteChangeStart);
     router.events.on('routeChangeComplete', handleRouteChangeComplete);
