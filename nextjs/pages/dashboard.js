@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { Dashboard as DashboardView } from '@/components/figma/Dashboard';
 import Link from 'next/link';
@@ -152,6 +152,26 @@ export default function DashboardPage() {
     router.push(map[page] || '/dashboard');
   };
 
+  const handleLogout = useCallback(async () => {
+    try {
+      localStorage.removeItem('username');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userId');
+    } catch {}
+    try {
+      if (typeof window !== 'undefined') {
+        const maybeEnd = window.__sp_endSession;
+        if (typeof maybeEnd === 'function') {
+          await maybeEnd();
+        }
+      }
+    } catch {}
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch {}
+    router.push('/login');
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-background text-foreground px-4 py-6">
       <div className="max-w-5xl mx-auto">
@@ -165,7 +185,7 @@ export default function DashboardPage() {
               <button
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-md border hover:bg-accent text-sm"
                 aria-label="View time stats"
-                title={`Time today: ${Math.floor((sessionStats.today_seconds||0)/3600)}h ${Math.floor(((sessionStats.today_seconds||0)%3600)/60)}m`}
+                title={`Time today: ${Math.floor((displayTodaySeconds||0)/3600)}h ${Math.floor(((displayTodaySeconds||0)%3600)/60)}m`}
               >
                 <Clock3 className="h-4 w-4" />
                 <span className="hidden sm:inline">
@@ -208,10 +228,7 @@ export default function DashboardPage() {
             <span className="hidden sm:inline">Settings</span>
           </Link>
           <button
-            onClick={() => {
-              try { localStorage.removeItem('username'); localStorage.removeItem('userEmail'); localStorage.removeItem('userId'); } catch {}
-              fetch('/api/auth/logout', { method: 'POST' }).finally(() => router.push('/login'));
-            }}
+            onClick={handleLogout}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-md border hover:bg-accent text-sm"
           >
             <LogOut className="h-4 w-4" />

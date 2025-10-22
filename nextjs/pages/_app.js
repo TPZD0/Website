@@ -71,6 +71,18 @@ export default function App({ Component, pageProps, props }) {
   }, []);
 
   React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.__sp_endSession = endSession;
+    return () => {
+      if (window.__sp_endSession === endSession) {
+        delete window.__sp_endSession;
+      }
+    };
+  }, [endSession]);
+
+  React.useEffect(() => {
     console.log("App load", pageName, router.query);
     setLoading(true);
     // TODO: This section is use to handle page change.
@@ -85,7 +97,8 @@ export default function App({ Component, pageProps, props }) {
       endSession();
     };
     const handleRouteChangeComplete = (url) => {
-      if (!authFree.has(router.pathname)) {
+      const nextPath = typeof url === 'string' ? url.split('?')[0] : router.pathname;
+      if (!authFree.has(nextPath)) {
         startSession(url);
       }
     };
